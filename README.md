@@ -1,33 +1,60 @@
 # PermissionGuard
 
-`PermissionGuard` is an agent-native approval and allowance firewall for the OKX Build X Hackathon.
+`PermissionGuard` is an agent-native approval firewall for X Layer wallets.
 
-Instead of acting like a simple revoke tool, it wraps OnchainOS approval primitives in a policy engine that helps agents:
+It turns raw OKX OnchainOS approval primitives into a reusable operator tool that can:
 
 - inspect ERC-20 approval exposure
-- identify risky or stale approvals
-- recommend safer actions by policy preset
-- produce shareable audit reports
-- execute guarded revokes through Agentic Wallet flows
+- score approval health under opinionated policy presets
+- enforce local spender budgets from a policy file
+- replace unlimited approvals with exact allowances
+- emit markdown and JSON artifacts for auditability
+- log every live remediation run to a local audit trail
 
-## Why this exists
+## Why it matters
 
-OKX already exposes the raw building blocks for approvals and revokes, but not a reusable skill that manages the full approval lifecycle for autonomous agents. This repo is the first implementation step toward that higher-level primitive.
+Most agents can trade, but very few can manage their permissions safely.
 
-## Current status
+PermissionGuard is built for the missing agent-ops layer:
 
-V0.1 includes:
+- unlimited approvals should not linger after execution
+- trusted spenders still need spend budgets
+- risky or blocked spenders should be removed automatically
+- every cleanup should leave behind an artifact a human can review
 
-- a TypeScript CLI
-- live `inspect`, `plan`, and `report` flows backed by `onchainos`
-- a guarded `execute` flow for revoke transactions
-- a reusable `SKILL.md` wrapper for other agents
+This is the core thesis for the OKX Build X Hackathon submission: `agents need a permission firewall, not just a revoke button`.
+
+## Product Surface
+
+The CLI now includes:
+
+- `status`: one-screen wallet health summary and next action
+- `inspect`: raw approval inventory for a wallet
+- `plan`: policy-driven decisions for each approval
+- `report`: markdown or JSON submission artifact
+- `execute`: live cleanup and exact-allowance remediation
+- `audit`: local execution history with artifact and tx references
+
+## Live-Proven Flows
+
+The current build has been tested live on X Layer with an Agentic Wallet.
+
+Proven transactions:
+
+- setup unlimited approval: `0x23423ae4622271d62070c356305e06b803d62cb486aca426ff0aa2b399b69481`
+- revoke unlimited approval: `0x1e02d66dd26b2a85305e91771cd261e314e80c5407c507a745d91fbcba586d33`
+- cleanup leg of exact remediation: `0x4d32af6447c64bb6fc8cda31a2779a6f3912a7450401e7ff17c9281c18968fb4`
+- exact regrant leg of exact remediation: `0x8e675c89d98ecf38ebe5525514c60d513d4cd173f569652b85919326c7d445cf`
+
+The successful exact-remediation run wrote a local audit artifact to:
+
+- `.permission-guard/runs/2026-04-12T16-47-55-954Z-execute.json`
 
 ## Requirements
 
 - Node.js 22+
-- `onchainos` CLI installed and configured
-- Agentic Wallet access for execution paths
+- `onchainos` CLI installed and authenticated
+- Agentic Wallet access for live execution
 
 ## Quickstart
 
@@ -36,50 +63,102 @@ npm install
 npm run build
 ```
 
-Inspect a wallet:
+Use the sample policy file as a starting point:
+
+```bash
+cp permission-guard.policy.example.json permission-guard.policy.json
+```
+
+Check wallet health:
+
+```bash
+npm run dev -- status --address 0xYourWallet --policy strict --config permission-guard.policy.json
+```
+
+Inspect approvals:
 
 ```bash
 npm run dev -- inspect --address 0xYourWallet --chain xlayer
 ```
 
-Generate a plan:
+Generate a policy plan:
 
 ```bash
-npm run dev -- plan --address 0xYourWallet --chain xlayer --policy strict
+npm run dev -- plan --address 0xYourWallet --policy strict --config permission-guard.policy.json
 ```
 
-Generate a markdown report:
+Write a markdown report artifact:
 
 ```bash
-npm run dev -- report --address 0xYourWallet --chain xlayer --policy strict
+npm run dev -- report --address 0xYourWallet --policy strict --config permission-guard.policy.json --output .permission-guard/report.md
 ```
 
-Preview revoke execution:
+Preview live cleanup:
 
 ```bash
-npm run dev -- execute --address 0xYourWallet --chain xlayer --policy strict
+npm run dev -- execute --address 0xYourWallet --policy strict --config permission-guard.policy.json
 ```
 
-Apply revokes through Agentic Wallet:
+Apply live cleanup and exact remediation:
 
 ```bash
-npm run dev -- execute --address 0xYourWallet --chain xlayer --policy strict --apply
+npm run dev -- execute --address 0xYourWallet --policy strict --config permission-guard.policy.json --apply
 ```
 
-## Command overview
+Review recent live runs:
 
-- `inspect`: fetch and summarize approval exposure
-- `plan`: convert approvals into policy-driven actions
-- `report`: export the plan as markdown or JSON
-- `execute`: tx-scan and revoke approvals marked for removal
+```bash
+npm run dev -- audit
+```
 
-## Policy presets
+## Policy-As-Code
 
-- `strict`: revoke unlimited and high-risk approvals aggressively
-- `minimal`: only revoke clearly dangerous exposure
-- `trading`: preserve normal workflow approvals while reducing oversized exposure
+PermissionGuard supports a local JSON policy file for spender-specific rules.
+
+Example:
+
+```json
+{
+  "defaults": {
+    "chain": "xlayer",
+    "policy": "strict"
+  },
+  "spenders": {
+    "0x8b773d83bc66be128c60e07e17c8901f7a64f000": {
+      "label": "Execution Router",
+      "trust": "trusted",
+      "maxAllowance": "500000",
+      "exactAllowance": "250000",
+      "notes": [
+        "Cap router spend to the smallest amount that still lets the agent execute."
+      ]
+    }
+  }
+}
+```
+
+Supported spender controls:
+
+- `trust: trusted` for approved operators with a spend budget
+- `trust: watchlist` for spenders that should stay visible in reviews
+- `trust: blocked` for immediate revocation
+- `maxAllowance` for budget enforcement
+- `exactAllowance` for exact regrant after cleanup
+- `notes` for operator context in plan and report output
+
+## Demo Story
+
+The strongest live demo is:
+
+1. Run `status` to show the wallet health summary.
+2. Run `plan` to show a local policy catching an unlimited approval.
+3. Run `report --output ...` to create a polished artifact.
+4. Run `execute --apply` to revoke the unlimited approval and regrant an exact budget.
+5. Run `audit` to show the recorded cleanup and tx hashes.
 
 ## Notes
 
-- Approval amounts are currently analyzed in raw units because token decimals are not yet resolved in the first milestone.
-- The initial execution flow only automates revoke transactions. Exact-amount re-approval is intentionally deferred to the next milestone.
+- The tool currently targets ERC-20 approvals first.
+- Permit2 awareness is intentionally lightweight in this milestone.
+- Approval budget values are expected in raw token units for now.
+- Live execution uses `tx-scan` before contract calls and records the resulting artifact locally.

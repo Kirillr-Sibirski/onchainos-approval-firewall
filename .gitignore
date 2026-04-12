@@ -5,3 +5,5 @@ dist/
 .env.*
 coverage/
 *.log
+.permission-guard/
+permission-guard.policy.json

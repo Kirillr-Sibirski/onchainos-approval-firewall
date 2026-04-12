@@ -1,46 +1,67 @@
 ---
 name: permission-guard
 description: >
-  Use this skill to inspect, plan, and clean up ERC-20 approvals for an Agentic Wallet.
-  Triggers: approval guard, allowance guard, revoke approvals, review spenders, approval firewall,
-  token allowance risk, Permit2 hygiene, stale approvals, spender policy.
+  Use this skill to inspect, score, and remediate ERC-20 approvals for an Agentic Wallet.
+  Triggers: approval guard, allowance guard, approval firewall, spender budget, revoke approvals,
+  exact approval replacement, stale approvals, risky spenders, approval audit.
 ---
 
 # PermissionGuard
 
-PermissionGuard is a reusable agent skill built on top of OKX OnchainOS primitives.
+PermissionGuard is a reusable operator skill for X Layer agents.
 
 It is designed for agents that need to:
 
-- review current approval exposure
-- explain why an approval is risky
-- generate policy-driven revoke or replacement actions
-- execute guarded cleanup via Agentic Wallet
+- review approval exposure before and after execution
+- apply local spender policy and budget rules
+- replace unlimited approvals with exact allowances
+- export human-readable reports and machine-readable artifacts
+- keep an audit trail of live cleanup runs
 
 ## Command Surface
 
 ```bash
+npm run dev -- status --address 0xYourWallet --policy strict --config permission-guard.policy.json
 npm run dev -- inspect --address 0xYourWallet --chain xlayer
-npm run dev -- plan --address 0xYourWallet --chain xlayer --policy strict
-npm run dev -- report --address 0xYourWallet --chain xlayer --policy strict
-npm run dev -- execute --address 0xYourWallet --chain xlayer --policy strict
+npm run dev -- plan --address 0xYourWallet --policy strict --config permission-guard.policy.json
+npm run dev -- report --address 0xYourWallet --policy strict --config permission-guard.policy.json --output .permission-guard/report.md
+npm run dev -- execute --address 0xYourWallet --policy strict --config permission-guard.policy.json --apply
+npm run dev -- audit
 ```
 
 ## Policy Presets
 
-- `strict`: revoke high-risk approvals and aggressively eliminate unlimited exposure
-- `minimal`: only remove clearly dangerous approvals
-- `trading`: preserve trading workflows while reducing oversized approvals
+- `strict`: revoke high-risk approvals and eliminate unlimited exposure
+- `minimal`: keep normal activity but still revoke obviously dangerous exposure
+- `trading`: preserve active workflows while shrinking oversized permissions
 
-## Current Limitations
+## Policy File
 
-- V0.1 focuses on ERC-20 approvals first.
-- Permit2 compatibility is planned but intentionally lightweight in the first milestone.
-- Execution currently automates revoke flows only.
+Use a local JSON file to define spender-specific rules:
+
+- `trust: trusted | watchlist | blocked`
+- `maxAllowance`
+- `exactAllowance`
+- `label`
+- `notes`
+
+Example starter file:
+
+```bash
+cp permission-guard.policy.example.json permission-guard.policy.json
+```
 
 ## Intended Demo
 
-1. Inspect a live wallet on X Layer.
-2. Generate a strict policy plan.
-3. Preview or execute revoke actions.
-4. Export the markdown report as proof of work.
+1. Run `status` to show the wallet health summary.
+2. Run `plan` to show why the current approval state is acceptable or risky.
+3. Run `report --output ...` to create a shareable artifact.
+4. Run `execute --apply` to clean up or replace oversized approvals.
+5. Run `audit` to show the artifact path and resulting tx hashes.
+
+## Current Scope
+
+- ERC-20 approvals on EVM chains first
+- OKX OnchainOS + Agentic Wallet execution flow
+- local audit artifacts for remediation runs
+- exact-allowance remediation when the policy file defines a budget

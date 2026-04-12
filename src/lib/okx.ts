@@ -7,6 +7,7 @@ import type { ApprovalRecord, ExecuteResult, ScanResult } from "../types.js";
 
 const execFileAsync = promisify(execFile);
 const MAX_UINT256 = (1n << 256n) - 1n;
+const CONTRACT_CALL_RETRIES = 3;
 
 const ERC20_APPROVE_ABI = [
   {
@@ -93,6 +94,10 @@ async function runJsonCommand(args: string[]): Promise<unknown> {
   }
 }
 
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function resolveDefaultAddress(): Promise<string> {
   const payload = unwrapData<{ evmAddress?: string }>(
     await runJsonCommand(["wallet", "balance"])
@@ -156,6 +161,12 @@ export async function fetchApprovals(params: {
         : typeof record.remainAmtPrecise === "string" && record.remainAmtPrecise
           ? record.remainAmtPrecise
           : String(record.remainAmount ?? "");
+    const allowanceRaw =
+      typeof record.allowance === "string" && /^\d+$/.test(record.allowance)
+        ? record.allowance
+        : typeof record.remainAmount === "string" && /^\d+$/.test(record.remainAmount)
+          ? record.remainAmount
+          : "";
     const isUnlimited = parseUnlimitedFlag(record, allowance);
 
     return {
@@ -164,6 +175,7 @@ export async function fetchApprovals(params: {
       chainIndex: String(record.chainIndex ?? ""),
       spenderAddress,
       allowance,
+      allowanceRaw,
       isUnlimited,
       riskLevel,
       protocolLabel:
@@ -234,12 +246,39 @@ export async function revokeApproval(params: {
   if (params.from) {
     args.push("--from", params.from);
   }
+  args.push("--force");
 
   return unwrapData<{ txHash?: string }>(await runJsonCommand(args));
 }
 
+async function submitContractCallWithRetry(params: {
+  chain: string;
+  tokenAddress: string;
+  from?: string;
+  data: string;
+}): Promise<{ txHash?: string }> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < CONTRACT_CALL_RETRIES; attempt += 1) {
+    try {
+      return await revokeApproval(params);
+    } catch (error) {
+      lastError = error;
+      if (attempt < CONTRACT_CALL_RETRIES - 1) {
+        await sleep(1200 * (attempt + 1));
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
 export async function executeRevokeFlow(params: {
-  approvals: Array<{ approval: ApprovalRecord; plannedAction: "revoke" | "replace_with_exact_approval" }>;
+  approvals: Array<{
+    approval: ApprovalRecord;
+    plannedAction: "revoke" | "replace_with_exact_approval";
+    replacementAllowance?: string;
+  }>;
   chain: string;
   from: string;
   apply: boolean;
@@ -247,7 +286,7 @@ export async function executeRevokeFlow(params: {
   const results: ExecuteResult[] = [];
 
   for (const item of params.approvals) {
-    const { approval, plannedAction } = item;
+    const { approval, plannedAction, replacementAllowance } = item;
     const calldata = buildRevokeCalldata(approval.spenderAddress);
     const scan = await scanTransaction({
       chain: params.chain,
@@ -279,18 +318,84 @@ export async function executeRevokeFlow(params: {
       command,
       followUp:
         plannedAction === "replace_with_exact_approval"
-          ? "Unlimited approval was cleared. Re-grant an exact approval only when the next action needs it."
+          ? replacementAllowance
+            ? `Unlimited approval will be replaced with an exact allowance of ${replacementAllowance}.`
+            : "Unlimited approval was cleared. Re-grant an exact approval only when the next action needs it."
           : undefined
     };
 
     if (params.apply && scan.action !== "block") {
-      const execution = await revokeApproval({
-        chain: params.chain,
-        tokenAddress: approval.tokenAddress,
-        from: params.from,
-        data: calldata
-      });
-      result.txHash = execution.txHash;
+      try {
+        const execution = await submitContractCallWithRetry({
+          chain: params.chain,
+          tokenAddress: approval.tokenAddress,
+          from: params.from,
+          data: calldata
+        });
+        result.txHash = execution.txHash;
+      } catch (error) {
+        result.error = error instanceof Error ? error.message : String(error);
+        result.followUp = "Cleanup execution failed before the replacement step could run.";
+        results.push(result);
+        continue;
+      }
+
+      if (
+        plannedAction === "replace_with_exact_approval" &&
+        replacementAllowance &&
+        /^\d+$/.test(replacementAllowance) &&
+        BigInt(replacementAllowance) > 0n
+      ) {
+        const replacementCalldata = buildApproveCalldata(
+          approval.spenderAddress,
+          BigInt(replacementAllowance)
+        );
+        const replacementScan = await scanTransaction({
+          chain: params.chain,
+          from: params.from,
+          to: approval.tokenAddress,
+          data: replacementCalldata
+        });
+
+        const replacementCommand = [
+          "onchainos",
+          "wallet",
+          "contract-call",
+          "--to",
+          approval.tokenAddress,
+          "--chain",
+          normalizeChain(params.chain),
+          "--input-data",
+          replacementCalldata
+        ];
+
+        if (params.from) {
+          replacementCommand.push("--from", params.from);
+        }
+
+        result.replacementScan = replacementScan;
+        result.replacementCommand = replacementCommand;
+
+        if (replacementScan.action !== "block") {
+          try {
+            const replacementExecution = await submitContractCallWithRetry({
+              chain: params.chain,
+              tokenAddress: approval.tokenAddress,
+              from: params.from,
+              data: replacementCalldata
+            });
+            result.replacementTxHash = replacementExecution.txHash;
+            result.followUp = `Unlimited approval was replaced with an exact allowance of ${replacementAllowance}.`;
+          } catch (error) {
+            result.error = error instanceof Error ? error.message : String(error);
+            result.followUp =
+              "Unlimited approval was cleared, but the exact replacement transaction failed.";
+          }
+        } else {
+          result.followUp =
+            "Unlimited approval was cleared, but the replacement exact approval was blocked by the security scan.";
+        }
+      }
     }
 
     results.push(result);

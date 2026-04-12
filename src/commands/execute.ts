@@ -1,3 +1,5 @@
+import { loadPolicyConfig } from "../lib/config.js";
+import { writeExecutionArtifacts } from "../lib/audit.js";
 import { executeRevokeFlow, fetchApprovals, resolveDefaultAddress } from "../lib/okx.js";
 import { buildPolicyDecisions } from "../lib/policy.js";
 import type { PolicyDecision, PolicyPreset } from "../types.js";
@@ -10,30 +12,54 @@ function isCleanupDecision(
 
 export async function executeCommand(options: {
   address?: string;
-  chain: string;
+  chain?: string;
   policy: PolicyPreset;
+  config?: string;
   apply?: boolean;
+  artifactDir?: string;
   format?: "pretty" | "json";
 }): Promise<void> {
+  const { config, path: configPath } = await loadPolicyConfig(options.config);
   const address = options.address ?? (await resolveDefaultAddress());
-  const approvals = await fetchApprovals({ address, chain: options.chain });
-  const decisions = buildPolicyDecisions(approvals, options.policy);
+  const chain = options.chain ?? config?.defaults?.chain ?? "xlayer";
+  const approvals = await fetchApprovals({ address, chain });
+  const decisions = buildPolicyDecisions(approvals, options.policy, config);
   const cleanupTargets = decisions
     .filter(isCleanupDecision)
     .map((decision) => ({
       approval: decision.approval,
-      plannedAction: decision.action
+      plannedAction: decision.action,
+      replacementAllowance: decision.replacementAllowance
     }));
 
   const results = await executeRevokeFlow({
     approvals: cleanupTargets,
-    chain: options.chain,
+    chain,
     from: address,
     apply: Boolean(options.apply)
   });
 
+  let artifactPath: string | undefined;
+  if (options.apply && results.length) {
+    const artifact = await writeExecutionArtifacts({
+      artifactDir: options.artifactDir,
+      entry: {
+        kind: "execute",
+        timestamp: new Date().toISOString(),
+        walletAddress: address,
+        chain,
+        policy: options.policy,
+        configPath,
+        results
+      }
+    });
+    artifactPath = artifact.artifactPath;
+  }
+
   if (options.format === "json") {
-    console.log(JSON.stringify({ address, apply: Boolean(options.apply), results }, null, 2));
+    console.log(
+      JSON.stringify({ address, chain, apply: Boolean(options.apply), configPath, artifactPath, results }, null, 2)
+    );
     return;
   }
 
@@ -46,6 +72,10 @@ export async function executeCommand(options: {
     `${options.apply ? "Applied" : "Prepared"} ${results.length} cleanup flow(s) for ${address}.`
   );
   console.log("");
+  if (artifactPath) {
+    console.log(`Audit artifact: ${artifactPath}`);
+    console.log("");
+  }
 
   for (const result of results) {
     console.log(`Token: ${result.approval.tokenSymbol || result.approval.tokenAddress}`);
@@ -59,8 +89,20 @@ export async function executeCommand(options: {
     if (result.txHash) {
       console.log(`Tx hash: ${result.txHash}`);
     }
+    if (result.replacementCommand) {
+      console.log(`Replacement command: ${result.replacementCommand.join(" ")}`);
+    }
+    if (result.replacementScan) {
+      console.log(`Replacement scan action: ${result.replacementScan.action || "safe"}`);
+    }
+    if (result.replacementTxHash) {
+      console.log(`Replacement tx hash: ${result.replacementTxHash}`);
+    }
     if (result.followUp) {
       console.log(`Follow-up: ${result.followUp}`);
+    }
+    if (result.error) {
+      console.log(`Error: ${result.error}`);
     }
     console.log("");
   }

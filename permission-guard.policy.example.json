@@ -1,0 +1,25 @@
+{
+  "defaults": {
+    "chain": "xlayer",
+    "policy": "strict"
+  },
+  "spenders": {
+    "0x8b773d83bc66be128c60e07e17c8901f7a64f000": {
+      "label": "Execution Router",
+      "trust": "trusted",
+      "maxAllowance": "500000",
+      "exactAllowance": "250000",
+      "notes": [
+        "Cap router spend to the smallest amount that still lets the agent execute.",
+        "Replace unlimited approvals with an exact allowance on every cleanup cycle."
+      ]
+    },
+    "0x1111111111111111111111111111111111111111": {
+      "label": "Blocked Spender Example",
+      "trust": "blocked",
+      "notes": [
+        "Emergency denylist example."
+      ]
+    }
+  }
+}

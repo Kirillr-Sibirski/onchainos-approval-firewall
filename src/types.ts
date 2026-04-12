@@ -12,6 +12,7 @@ export interface ApprovalRecord {
   chainIndex: string;
   spenderAddress: string;
   allowance: string;
+  allowanceRaw: string;
   isUnlimited: boolean;
   riskLevel: string;
   protocolLabel?: string;
@@ -31,6 +32,25 @@ export interface PolicyDecision {
   action: PermissionAction;
   severity: "low" | "medium" | "high";
   reason: string;
+  replacementAllowance?: string;
+  policyLabel?: string;
+  notes?: string[];
+}
+
+export interface SpenderPolicy {
+  label?: string;
+  trust?: "trusted" | "watchlist" | "blocked";
+  maxAllowance?: string;
+  exactAllowance?: string;
+  notes?: string[];
+}
+
+export interface PolicyConfig {
+  defaults?: {
+    chain?: string;
+    policy?: PolicyPreset;
+  };
+  spenders?: Record<string, SpenderPolicy>;
 }
 
 export interface ScanResult {
@@ -53,5 +73,20 @@ export interface ExecuteResult {
   scan: ScanResult;
   command: string[];
   txHash?: string;
+  replacementScan?: ScanResult;
+  replacementCommand?: string[];
+  replacementTxHash?: string;
   followUp?: string;
+  error?: string;
+}
+
+export interface AuditLogEntry {
+  kind: "execute";
+  timestamp: string;
+  walletAddress: string;
+  chain: string;
+  policy: PolicyPreset;
+  configPath?: string;
+  artifactPath?: string;
+  results: ExecuteResult[];
 }
