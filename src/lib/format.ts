@@ -1,5 +1,9 @@
 import type { ApprovalRecord, InspectionSummary, PolicyDecision } from "../types.js";
 
+function displayAllowance(approval: ApprovalRecord): string {
+  return approval.isUnlimited ? "unlimited" : approval.allowance;
+}
+
 export function summarizeApprovals(approvals: ApprovalRecord[]): InspectionSummary {
   let unlimitedApprovals = 0;
   let highRiskApprovals = 0;
@@ -7,7 +11,7 @@ export function summarizeApprovals(approvals: ApprovalRecord[]): InspectionSumma
   let lowRiskApprovals = 0;
 
   for (const approval of approvals) {
-    if (approval.allowance === "unlimited") {
+    if (approval.isUnlimited) {
       unlimitedApprovals += 1;
     }
 
@@ -42,12 +46,17 @@ export function formatInspection(approvals: ApprovalRecord[]): string {
     ""
   ];
 
+  if (!approvals.length) {
+    lines.push("No approvals found for the selected wallet or chain.", "");
+    return lines.join("\n");
+  }
+
   for (const approval of approvals) {
     lines.push(
       `${approval.tokenSymbol || "UNKNOWN"} on chain ${approval.chainIndex}`,
       `  Token: ${approval.tokenAddress}`,
       `  Spender: ${approval.spenderAddress}`,
-      `  Allowance: ${approval.allowance}`,
+      `  Allowance: ${displayAllowance(approval)}`,
       `  Risk: ${approval.riskLevel || "unknown"}`,
       ""
     );
@@ -59,12 +68,17 @@ export function formatInspection(approvals: ApprovalRecord[]): string {
 export function formatPlan(decisions: PolicyDecision[]): string {
   const lines = ["PermissionGuard Plan", ""];
 
+  if (!decisions.length) {
+    lines.push("No policy actions are needed for the selected wallet or chain.", "");
+    return lines.join("\n");
+  }
+
   for (const decision of decisions) {
     lines.push(
       `${decision.action.toUpperCase()} [${decision.severity}]`,
       `  Token: ${decision.approval.tokenSymbol || decision.approval.tokenAddress}`,
       `  Spender: ${decision.approval.spenderAddress}`,
-      `  Allowance: ${decision.approval.allowance}`,
+      `  Allowance: ${displayAllowance(decision.approval)}`,
       `  Why: ${decision.reason}`,
       ""
     );
@@ -94,6 +108,10 @@ export function formatMarkdownReport(
     "## Recommended Actions"
   ];
 
+  if (!decisions.length) {
+    lines.push("- No approval actions are needed.");
+  }
+
   for (const decision of decisions) {
     lines.push(
       `- **${decision.action}** for \`${decision.approval.tokenSymbol || decision.approval.tokenAddress}\` -> \`${decision.approval.spenderAddress}\`: ${decision.reason}`
@@ -102,9 +120,14 @@ export function formatMarkdownReport(
 
   lines.push("", "## Raw Approvals");
 
+  if (!approvals.length) {
+    lines.push("- No approvals were found.");
+    return lines.join("\n");
+  }
+
   for (const approval of approvals) {
     lines.push(
-      `- \`${approval.tokenSymbol || "UNKNOWN"}\` on chain \`${approval.chainIndex}\`: spender \`${approval.spenderAddress}\`, allowance \`${approval.allowance}\`, risk \`${approval.riskLevel || "unknown"}\``
+      `- \`${approval.tokenSymbol || "UNKNOWN"}\` on chain \`${approval.chainIndex}\`: spender \`${approval.spenderAddress}\`, allowance \`${displayAllowance(approval)}\`, risk \`${approval.riskLevel || "unknown"}\``
     );
   }
 

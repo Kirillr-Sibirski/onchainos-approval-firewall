@@ -55,7 +55,7 @@ program
 
 program
   .command("execute")
-  .description("Run revoke flows for approvals marked for removal.")
+  .description("Run cleanup flows for approvals marked for removal or reduction.")
   .requiredOption("--policy <policy>", "Policy preset: strict, minimal, trading.", parsePolicy)
   .requiredOption("--chain <chain>", "Chain name or chain id used for tx-scan and contract execution.")
   .option("--address <address>", "Wallet address. Falls back to the active Agentic Wallet EVM address.")

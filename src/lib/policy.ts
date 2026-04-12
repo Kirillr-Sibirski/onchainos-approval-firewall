@@ -1,7 +1,7 @@
 import type { ApprovalRecord, PolicyDecision, PolicyPreset } from "../types.js";
 
 function isUnlimited(allowance: string): boolean {
-  return allowance === "unlimited";
+  return allowance.toLowerCase() === "unlimited";
 }
 
 function riskSeverity(riskLevel: string): "low" | "medium" | "high" {
@@ -21,7 +21,7 @@ export function buildPolicyDecisions(
 ): PolicyDecision[] {
   return approvals.map((approval) => {
     const severity = riskSeverity(approval.riskLevel);
-    const unlimited = isUnlimited(approval.allowance);
+    const unlimited = approval.isUnlimited || isUnlimited(approval.allowance);
 
     if (policy === "strict") {
       if (severity === "high") {

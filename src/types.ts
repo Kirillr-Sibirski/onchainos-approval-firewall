@@ -12,6 +12,7 @@ export interface ApprovalRecord {
   chainIndex: string;
   spenderAddress: string;
   allowance: string;
+  isUnlimited: boolean;
   riskLevel: string;
   protocolLabel?: string;
   raw: unknown;
@@ -48,7 +49,9 @@ export interface ScanResult {
 
 export interface ExecuteResult {
   approval: ApprovalRecord;
+  plannedAction: PermissionAction;
   scan: ScanResult;
   command: string[];
   txHash?: string;
+  followUp?: string;
 }

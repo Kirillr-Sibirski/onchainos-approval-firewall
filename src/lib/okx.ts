@@ -6,6 +6,7 @@ import { encodeFunctionData } from "viem";
 import type { ApprovalRecord, ExecuteResult, ScanResult } from "../types.js";
 
 const execFileAsync = promisify(execFile);
+const MAX_UINT256 = (1n << 256n) - 1n;
 
 const ERC20_APPROVE_ABI = [
   {
@@ -25,6 +26,51 @@ function unwrapData<T>(value: unknown): T {
     return (value as { data: T }).data;
   }
   return value as T;
+}
+
+function normalizeChain(chain: string): string {
+  const value = chain.trim().toLowerCase().replace(/[\s_]+/g, "");
+  if (value === "xlayer" || value === "196") {
+    return "xlayer";
+  }
+  return value;
+}
+
+function parseUnlimitedFlag(record: Record<string, unknown>, allowance: string): boolean {
+  if (allowance.toLowerCase() === "unlimited") {
+    return true;
+  }
+
+  const candidates = [
+    record.allowance,
+    record.remainAmount,
+    record.remainAmtPrecise
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string" || !candidate.trim()) {
+      continue;
+    }
+
+    const normalized = candidate.trim().toLowerCase();
+    if (normalized === "unlimited") {
+      return true;
+    }
+
+    if (!/^\d+$/.test(normalized)) {
+      continue;
+    }
+
+    try {
+      if (BigInt(normalized) === MAX_UINT256) {
+        return true;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return false;
 }
 
 async function runJsonCommand(args: string[]): Promise<unknown> {
@@ -65,7 +111,7 @@ export async function fetchApprovals(params: {
 }): Promise<ApprovalRecord[]> {
   const args = ["security", "approvals", "--address", params.address];
   if (params.chain) {
-    args.push("--chain", params.chain);
+    args.push("--chain", normalizeChain(params.chain));
   }
 
   const payload = unwrapData<{
@@ -110,6 +156,7 @@ export async function fetchApprovals(params: {
         : typeof record.remainAmtPrecise === "string" && record.remainAmtPrecise
           ? record.remainAmtPrecise
           : String(record.remainAmount ?? "");
+    const isUnlimited = parseUnlimitedFlag(record, allowance);
 
     return {
       tokenSymbol,
@@ -117,6 +164,7 @@ export async function fetchApprovals(params: {
       chainIndex: String(record.chainIndex ?? ""),
       spenderAddress,
       allowance,
+      isUnlimited,
       riskLevel,
       protocolLabel:
         typeof record.protocolLabel === "string" && record.protocolLabel
@@ -129,12 +177,19 @@ export async function fetchApprovals(params: {
   });
 }
 
-export function buildRevokeCalldata(spenderAddress: string): `0x${string}` {
+export function buildApproveCalldata(
+  spenderAddress: string,
+  amount: bigint
+): `0x${string}` {
   return encodeFunctionData({
     abi: ERC20_APPROVE_ABI,
     functionName: "approve",
-    args: [spenderAddress as `0x${string}`, 0n]
+    args: [spenderAddress as `0x${string}`, amount]
   });
+}
+
+export function buildRevokeCalldata(spenderAddress: string): `0x${string}` {
+  return buildApproveCalldata(spenderAddress, 0n);
 }
 
 export async function scanTransaction(params: {
@@ -148,7 +203,7 @@ export async function scanTransaction(params: {
       "security",
       "tx-scan",
       "--chain",
-      params.chain,
+      normalizeChain(params.chain),
       "--from",
       params.from,
       "--to",
@@ -171,7 +226,7 @@ export async function revokeApproval(params: {
     "--to",
     params.tokenAddress,
     "--chain",
-    params.chain,
+    normalizeChain(params.chain),
     "--input-data",
     params.data
   ];
@@ -184,14 +239,15 @@ export async function revokeApproval(params: {
 }
 
 export async function executeRevokeFlow(params: {
-  approvals: ApprovalRecord[];
+  approvals: Array<{ approval: ApprovalRecord; plannedAction: "revoke" | "replace_with_exact_approval" }>;
   chain: string;
   from: string;
   apply: boolean;
 }): Promise<ExecuteResult[]> {
   const results: ExecuteResult[] = [];
 
-  for (const approval of params.approvals) {
+  for (const item of params.approvals) {
+    const { approval, plannedAction } = item;
     const calldata = buildRevokeCalldata(approval.spenderAddress);
     const scan = await scanTransaction({
       chain: params.chain,
@@ -207,7 +263,7 @@ export async function executeRevokeFlow(params: {
       "--to",
       approval.tokenAddress,
       "--chain",
-      params.chain,
+      normalizeChain(params.chain),
       "--input-data",
       calldata
     ];
@@ -218,8 +274,13 @@ export async function executeRevokeFlow(params: {
 
     const result: ExecuteResult = {
       approval,
+      plannedAction,
       scan,
-      command
+      command,
+      followUp:
+        plannedAction === "replace_with_exact_approval"
+          ? "Unlimited approval was cleared. Re-grant an exact approval only when the next action needs it."
+          : undefined
     };
 
     if (params.apply && scan.action !== "block") {
