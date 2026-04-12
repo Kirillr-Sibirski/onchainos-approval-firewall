@@ -1,0 +1,37 @@
+{
+  "name": "permission-guard",
+  "version": "0.1.0",
+  "description": "Agent-native approval and allowance guard for the OKX Build X hackathon.",
+  "type": "module",
+  "bin": {
+    "permission-guard": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js"
+  },
+  "keywords": [
+    "okx",
+    "onchainos",
+    "x-layer",
+    "agent",
+    "approval",
+    "allowance",
+    "permit2"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "commander": "^14.0.0",
+    "viem": "^2.38.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
