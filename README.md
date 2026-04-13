@@ -1,6 +1,6 @@
 # OKX Approval Firewall
 
-`OKX Approval Firewall` is an agent-native approval safety layer for `X Layer` wallets.
+`OKX Approval Firewall` is the approval safety layer for agent wallets on `X Layer`.
 
 It helps agents and operators:
 
@@ -10,11 +10,18 @@ It helps agents and operators:
 - revoke or replace unlimited approvals through Agentic Wallet
 - verify the post-run state and keep an audit trail
 
-Built for the `OKX Build X Hackathon`, the project focuses on a practical gap in agent operations: agents can trade, route, and pay, but permissions often stay open after execution.
+Built for the `OKX Build X Hackathon`, the project focuses on a practical gap in agent operations: agents can trade, route, and pay, but the token approvals that enable those actions often stay open after execution.
 
 ## Project Intro
 
 This project is a CLI, local dashboard, and reusable skill for approval hygiene on X Layer.
+
+The simplest way to understand it is:
+
+- an agent wants to trade, route, or spend tokens
+- that requires ERC-20 approvals
+- those approvals can be too large, too old, or point at risky spenders
+- this project checks them, decides what should happen, and can clean them up safely
 
 Core entrypoints:
 
@@ -42,7 +49,7 @@ Core thesis: `agents need a permission firewall, not just a revoke button`.
 Main workflow:
 
 1. fetch approvals with `OnchainOS security approvals`
-2. score approvals with local policy logic
+2. decide whether each approval should be kept, reviewed, revoked, or reduced
 3. preflight remediation with `OnchainOS security tx-scan`
 4. execute through `Agentic Wallet`
 5. verify the after-state and write a local audit artifact
@@ -78,7 +85,7 @@ How they are used:
 
 1. resolve the active wallet
 2. inspect current approvals
-3. score and plan approval actions
+3. classify each approval as `keep`, `review`, `revoke`, or `replace_with_exact_approval`
 4. scan revoke or exact-approval transactions before execution
 5. execute live cleanup through Agentic Wallet
 
@@ -92,6 +99,8 @@ The product includes:
 - `dashboard` for a visual review and execution surface on top of the same shared workflows
 
 Live execution still requires explicit confirmation or `--apply`.
+
+The important point is that this is not the trading agent itself. It is the approval-control layer an agent or operator uses before and after the wallet touches funds.
 
 ## Working Mechanics
 
