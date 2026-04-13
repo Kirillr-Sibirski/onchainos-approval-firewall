@@ -12,6 +12,8 @@ OKX Approval Firewall is a reusable operator skill for X Layer agents.
 
 It is designed for agents that need to:
 
+- inspect approval health through natural-language requests
+- generate model-backed operator briefings from approval state
 - review approval exposure before and after execution
 - apply local spender policy and budget rules
 - replace unlimited approvals with exact allowances
@@ -21,6 +23,9 @@ It is designed for agents that need to:
 ## Command Surface
 
 ```bash
+npm run dev -- assist --input "Check my wallet health on X Layer"
+npm run dev -- assist --input "Clean up risky approvals but keep trading routers active" --config okx-approval-firewall.policy.json
+npm run dev -- brief --policy strict --address 0xYourWallet
 npm run dev -- status --address 0xYourWallet --policy strict --config okx-approval-firewall.policy.json
 npm run dev -- inspect --address 0xYourWallet --chain xlayer
 npm run dev -- plan --address 0xYourWallet --policy strict --config okx-approval-firewall.policy.json
@@ -53,15 +58,19 @@ cp okx-approval-firewall.policy.example.json okx-approval-firewall.policy.json
 
 ## Intended Demo
 
-1. Run `status` to show the wallet health summary.
-2. Run `plan` to show why the current approval state is acceptable or risky.
-3. Run `report --output ...` to create a shareable artifact.
-4. Run `execute --apply` to clean up or replace oversized approvals.
-5. Run `audit` to show the artifact path and resulting tx hashes.
+1. Run `assist` with a natural-language safety request.
+2. Run `brief` to create a model-backed operator summary.
+3. Run `status` to show the wallet health summary.
+4. Run `plan` to show why the current approval state is acceptable or risky.
+5. Run `report --output ...` to create a shareable artifact.
+6. Run `execute --apply` to clean up or replace oversized approvals.
+7. Run `audit` to show the artifact path and resulting tx hashes.
 
 ## Current Scope
 
 - ERC-20 approvals on EVM chains first
 - OKX OnchainOS + Agentic Wallet execution flow
+- natural-language request routing with safe dry-run defaults
+- optional OpenAI-compatible model briefings for operator narratives
 - local audit artifacts for remediation runs
 - exact-allowance remediation when the policy file defines a budget

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 
+import { briefCommand } from "./commands/brief.js";
+import { assistCommand } from "./commands/assist.js";
 import { auditCommand } from "./commands/audit.js";
 import { executeCommand } from "./commands/execute.js";
 import { inspectCommand } from "./commands/inspect.js";
@@ -22,6 +24,34 @@ program
   .name("okx-approval-firewall")
   .description("Agent-native approval and allowance firewall for X Layer agents.")
   .version("0.1.0");
+
+program
+  .command("brief")
+  .description("Generate a model-backed operator briefing from live approval state.")
+  .requiredOption("--policy <policy>", "Policy preset: strict, minimal, trading.", parsePolicy)
+  .option("--address <address>", "Wallet address. Falls back to the active Agentic Wallet EVM address.")
+  .option("--chain <chain>", "Chain name or chain id to pass through to OnchainOS.")
+  .option("--config <path>", "Optional path to a local policy config JSON file.")
+  .option("--api-key <key>", "Optional API key override for an OpenAI-compatible chat-completions endpoint.")
+  .option("--base-url <url>", "Optional OpenAI-compatible API base URL.")
+  .option("--model <model>", "Optional model override.")
+  .action(async (options) => {
+    await briefCommand(options);
+  });
+
+program
+  .command("assist")
+  .description("Interpret a natural-language request and route it to the safest matching workflow.")
+  .requiredOption("--input <text>", "Natural-language request for approval inspection, planning, reporting, or cleanup.")
+  .option("--address <address>", "Wallet address. Falls back to the active Agentic Wallet EVM address.")
+  .option("--chain <chain>", "Chain name or chain id to pass through to OnchainOS.")
+  .option("--policy <policy>", "Optional policy preset override: strict, minimal, trading.", parsePolicy)
+  .option("--config <path>", "Optional path to a local policy config JSON file.")
+  .option("--apply", "Actually submit revoke calls through Agentic Wallet when the request maps to execute.")
+  .option("--output <path>", "Optional output path when the request maps to report.")
+  .action(async (options) => {
+    await assistCommand(options);
+  });
 
 program
   .command("status")

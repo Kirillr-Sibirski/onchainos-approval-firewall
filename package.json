@@ -8,9 +8,11 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "ci": "npm run check && npm run build && npm test",
     "check": "tsc --noEmit -p tsconfig.json",
     "dev": "tsx src/cli.ts",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "test": "node --import tsx --test test/**/*.test.ts"
   },
   "keywords": [
     "okx",

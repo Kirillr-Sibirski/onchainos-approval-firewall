@@ -1,19 +1,20 @@
 # OKX Approval Firewall
 
-`OKX Approval Firewall` is an agent-native approval firewall for X Layer wallets.
+`OKX Approval Firewall` is an agent-native approval firewall for `X Layer` wallets.
 
-It turns raw OKX OnchainOS approval primitives into a reusable operator tool that can:
+It turns raw `OnchainOS` approval and transaction-security primitives into a reusable operator skill that can:
 
 - inspect ERC-20 approval exposure
-- score approval health under opinionated policy presets
+- score approval health under policy presets
 - enforce local spender budgets from a policy file
 - replace unlimited approvals with exact allowances
+- explain the next safest action in plain language
 - emit markdown and JSON artifacts for auditability
 - log every live remediation run to a local audit trail
 
-Built for the `OKX Build X Hackathon`, `OKX Approval Firewall` focuses on a real agent pain point: permissions tend to accumulate after execution, but autonomous systems still need safe ways to keep operating.
+Built for the `OKX Build X Hackathon`, the project focuses on a practical agent-ops problem: agents can trade, bridge, and pay, but permissions often linger after execution. Approval hygiene should be part of the runtime, not an afterthought.
 
-## Description
+## Project Intro
 
 OKX Approval Firewall is a CLI and reusable skill for agent operators on X Layer.
 
@@ -24,18 +25,20 @@ It helps agents and humans answer four practical questions:
 3. How should those approvals be reduced or revoked?
 4. Can we remediate them live and keep a clean audit trail?
 
-## Why it matters
+## Project Positioning In The X Layer Ecosystem
 
-Most agents can trade, but very few can manage their permissions safely.
+Most X Layer agent projects focus on execution: swapping, routing, bridging, or paying. `OKX Approval Firewall` is positioned as the permission-control layer that sits around those actions.
 
-OKX Approval Firewall is built for the missing agent-ops layer:
+It is not another trading bot and it is not a generic revoke button.
+
+It is built for the missing agent-ops layer on X Layer:
 
 - unlimited approvals should not linger after execution
 - trusted spenders still need spend budgets
 - risky or blocked spenders should be removed automatically
-- every cleanup should leave behind an artifact a human can review
+- every cleanup should leave behind a machine-readable artifact a human can review
 
-This is the core thesis for the OKX Build X Hackathon submission: `agents need a permission firewall, not just a revoke button`.
+Core thesis: `agents need a permission firewall, not just a revoke button`.
 
 ## Architecture Overview
 
@@ -43,11 +46,12 @@ OKX Approval Firewall is intentionally simple and operator-first:
 
 - `OnchainOS security approvals` inventories current ERC-20 approval state
 - `OnchainOS security tx-scan` checks remediation transactions before execution
-- `Agentic Wallet` provides the execution context and signing path
+- `OnchainOS wallet balance` resolves the active Agentic Wallet identity when needed
+- `OnchainOS wallet contract-call` submits live revoke and exact-approval transactions
 - local `policy-as-code` files define trusted, watchlisted, and blocked spenders
 - local audit artifacts preserve execution results for human review
 
-The main execution loop is:
+Main execution loop:
 
 1. fetch approvals
 2. classify approvals under a policy preset and optional local config
@@ -55,21 +59,87 @@ The main execution loop is:
 4. execute cleanup or exact-allowance replacement on X Layer
 5. write a machine-readable audit artifact
 
-## X Layer Identity
+```mermaid
+flowchart TD
+  A["Agent or operator request"] --> B["Assist / CLI command"]
+  B --> C["Resolve Agentic Wallet identity"]
+  C --> D["Fetch approvals via OnchainOS security approvals"]
+  D --> E["Policy engine scores spender risk and budget fit"]
+  E --> F["Render status / plan / markdown report"]
+  E --> G["Build revoke or exact-allowance remediation"]
+  G --> H["Pre-scan tx via OnchainOS security tx-scan"]
+  H --> I["Execute through Agentic Wallet"]
+  I --> J["Write audit artifact and proof output"]
+```
 
-- Primary Agentic Wallet:
+## Onchain Identity And Deployment Address
+
+- Primary Agentic Wallet address:
   `0x5b6a6bc856fba3e3ac9fe4e9368d2aa3090990c8`
 - Target chain:
   `X Layer`
+- Chain ID:
+  `196`
+- Deployment identity for this Skills Arena submission:
+  the Agentic Wallet above is the onchain identity that performs live remediation
 - Custom deployed contracts:
   `None in this version`
 
-This version is intentionally focused on the agent permission layer rather than a custom smart-contract protocol.
+This milestone is intentionally focused on the agent permission layer rather than a custom smart-contract protocol.
+
+## OnchainOS / Uniswap Skill Usage
+
+Current milestone: `OnchainOS-native`. No Uniswap integration is claimed in this version.
+
+### OnchainOS modules used
+
+- `security approvals`
+  inventories current approval exposure for the wallet
+- `security tx-scan`
+  checks revoke and exact-allowance remediation calls before execution
+- `wallet balance`
+  resolves the active Agentic Wallet EVM identity
+- `wallet contract-call`
+  executes live approval cleanup and exact re-grants
+
+### How the integration works
+
+1. The operator or agent asks for a wallet health check, plan, report, or cleanup.
+2. The tool fetches approval state through `OnchainOS security approvals`.
+3. The local policy engine classifies each approval as `keep`, `review`, `revoke`, or `replace_with_exact_approval`.
+4. Remediation transactions are encoded and passed through `OnchainOS security tx-scan`.
+5. Live execution goes through `Agentic Wallet` with `wallet contract-call`.
+6. The run is written to a local audit artifact for later review.
+
+## AI Interactive Experience
+
+The project now includes an agent-facing `assist` command that interprets natural-language operator requests and routes them to the safest matching workflow.
+
+It also includes an optional `brief` command that can produce a model-backed operator briefing through an OpenAI-compatible API when credentials are configured.
+
+Examples:
+
+```bash
+npm run dev -- assist --input "Check my wallet health on X Layer"
+npm run dev -- assist --input "Generate a markdown report for my approvals" --output proof/demo-report.md
+npm run dev -- assist --input "Clean up risky approvals but keep trading routers active" --config okx-approval-firewall.policy.json
+npm run dev -- assist --input "Revoke anything unsafe now" --policy strict --apply
+npm run dev -- brief --policy strict --address 0xYourWallet
+```
+
+Why this matters for the product:
+
+- agents can issue natural-language safety requests instead of memorizing command combinations
+- the tool explains the interpreted intent, chosen policy, safety mode, and next command
+- operators can generate a model-backed narrative briefing from the live approval state when an LLM endpoint is configured
+- live remediation still requires explicit `--apply`, so conversational control does not bypass execution safety
 
 ## Product Surface
 
-The CLI now includes:
+The CLI includes:
 
+- `assist`: natural-language routing for approval inspection, planning, reporting, and cleanup
+- `brief`: optional model-backed operator briefing from live approval state
 - `status`: one-screen wallet health summary and next action
 - `inspect`: raw approval inventory for a wallet
 - `plan`: policy-driven decisions for each approval
@@ -77,18 +147,41 @@ The CLI now includes:
 - `execute`: live cleanup and exact-allowance remediation
 - `audit`: local execution history with artifact and tx references
 
-## Live-Proven Flows
+## Working Mechanics
 
-The current build has been tested live on X Layer with an Agentic Wallet.
+The operational flow is:
 
-Proven transactions:
+1. `status` surfaces the current wallet approval health
+2. `inspect` shows raw exposure
+3. `plan` applies the chosen preset and local config
+4. `report` produces a shareable artifact
+5. `execute --apply` revokes unsafe approvals and optionally re-grants an exact budget
+6. `audit` shows the recorded local artifact and tx references
+
+CLI help:
+
+```bash
+node dist/cli.js --help
+```
+
+## Live Proof
+
+The current build has been tested live on X Layer with the project Agentic Wallet.
+
+Verified transactions:
 
 - setup unlimited approval: `0x23423ae4622271d62070c356305e06b803d62cb486aca426ff0aa2b399b69481`
 - revoke unlimited approval: `0x1e02d66dd26b2a85305e91771cd261e314e80c5407c507a745d91fbcba586d33`
 - cleanup leg of exact remediation: `0x4d32af6447c64bb6fc8cda31a2779a6f3912a7450401e7ff17c9281c18968fb4`
 - exact regrant leg of exact remediation: `0x8e675c89d98ecf38ebe5525514c60d513d4cd173f569652b85919326c7d445cf`
 
-The successful exact-remediation run wrote a local audit artifact to:
+Tracked proof assets:
+
+- [proof/live-remediation-proof.md](./proof/live-remediation-proof.md)
+- [proof/live-remediation-proof.json](./proof/live-remediation-proof.json)
+- [proof/demo-report.md](./proof/demo-report.md)
+
+The successful exact-remediation run also produced a local audit artifact at:
 
 - `.okx-approval-firewall/runs/2026-04-12T16-47-55-954Z-execute.json`
 
@@ -111,7 +204,26 @@ Use the sample policy file as a starting point:
 cp okx-approval-firewall.policy.example.json okx-approval-firewall.policy.json
 ```
 
-Check wallet health:
+Natural-language assistant mode:
+
+```bash
+npm run dev -- assist --input "Check my wallet health on X Layer"
+```
+
+Model-backed briefing mode:
+
+```bash
+npm run dev -- brief --policy strict --address 0xYourWallet
+```
+
+Environment variables for `brief`:
+
+```bash
+export APPROVAL_FIREWALL_LLM_API_KEY=...
+export APPROVAL_FIREWALL_LLM_MODEL=gpt-4o-mini
+```
+
+Structured status check:
 
 ```bash
 npm run dev -- status --address 0xYourWallet --policy strict --config okx-approval-firewall.policy.json
@@ -153,6 +265,12 @@ Review recent live runs:
 npm run dev -- audit
 ```
 
+Run the full verification loop:
+
+```bash
+npm run ci
+```
+
 ## Policy-As-Code
 
 OKX Approval Firewall supports a local JSON policy file for spender-specific rules.
@@ -172,7 +290,8 @@ Example:
       "maxAllowance": "500000",
       "exactAllowance": "250000",
       "notes": [
-        "Cap router spend to the smallest amount that still lets the agent execute."
+        "Cap router spend to the smallest amount that still lets the agent execute.",
+        "Replace unlimited approvals with an exact allowance on every cleanup cycle."
       ]
     }
   }
@@ -188,18 +307,21 @@ Supported spender controls:
 - `exactAllowance` for exact regrant after cleanup
 - `notes` for operator context in plan and report output
 
-## Docs
+## Repo Structure
 
-The repo is intentionally small:
-
-- `README.md`: product overview, setup, and demo story
+- `README.md`: product overview, architecture, proof, and usage
 - `skills/okx-approval-firewall/SKILL.md`: reusable skill wrapper
 - `okx-approval-firewall.policy.example.json`: starter policy config
-- `src/`: CLI commands, policy engine, OKX integration, and audit logging
+- `proof/`: tracked judge-facing proof assets
+- `src/`: CLI commands, policy engine, OnchainOS integration, and audit logging
+- `test/`: parser and policy tests
+- `.github/workflows/ci.yml`: build and test verification
 
 Key entrypoints:
 
 - `src/cli.ts`
+- `src/lib/assist.ts`
+- `src/lib/brief.ts`
 - `src/lib/okx.ts`
 - `src/lib/policy.ts`
 - `src/lib/audit.ts`
@@ -208,11 +330,29 @@ Key entrypoints:
 
 The strongest live demo is:
 
-1. Run `status` to show the wallet health summary.
-2. Run `plan` to show a local policy catching an unlimited approval.
-3. Run `report --output ...` to create a polished artifact.
-4. Run `execute --apply` to revoke the unlimited approval and regrant an exact budget.
-5. Run `audit` to show the recorded cleanup and tx hashes.
+1. Run `assist` with a natural-language wallet safety request.
+2. Run `brief` to generate an operator-facing risk narrative.
+3. Show `status` to surface the current risk grade.
+4. Run `plan` to show why the policy flags an unlimited approval.
+5. Run `report --output ...` to create a polished artifact.
+6. Run `execute --apply` to revoke the unlimited approval and regrant an exact budget.
+7. Run `audit` to show the recorded cleanup and tx hashes.
+8. End on the tracked proof files in `proof/`.
+
+Reusable demo assets:
+
+- [docs/demo-script.md](./docs/demo-script.md)
+- [docs/x-post-draft.md](./docs/x-post-draft.md)
+
+## Team Members
+
+Solo submission:
+
+- `Kirill Sibirski` — product, engineering, agent operations, and live X Layer validation
+- Contact: `kirill.rybkov@outlook.com`
+- GitHub: `Kirillr-Sibirski`
+
+If this project later expands into a multi-agent deployment, each agent role will be documented explicitly in this section and in the repo docs.
 
 ## Notes
 
@@ -220,9 +360,3 @@ The strongest live demo is:
 - Permit2 awareness is intentionally lightweight in this milestone.
 - Approval budget values are expected in raw token units for now.
 - Live execution uses `tx-scan` before contract calls and records the resulting artifact locally.
-
-## Team
-
-- Kirill Sibirski
-
-If you want, replace this section with your preferred public identity, role, and contact link before submission.
