@@ -150,6 +150,11 @@ async function createPolicyConfig(dir: string): Promise<string> {
             exactAllowance: "50000",
             label: "demo router",
             notes: ["Keep the router funded but bounded."]
+          },
+          "0x1111111111111111111111111111111111111111": {
+            trust: "blocked",
+            label: "blocked example",
+            notes: ["Always revoke this spender."]
           }
         }
       },
@@ -269,7 +274,20 @@ async function waitForDashboard(port: number): Promise<void> {
 
 test("status, inspect, plan, and report run end-to-end through the CLI", async () => {
   const fake = await createFakeOnchainos({
-    approvals: [makeUnlimitedApproval()]
+    approvals: [
+      makeUnlimitedApproval(),
+      {
+        tokenSymbol: "USDC",
+        tokenAddress: DEFAULT_TOKEN,
+        chainIndex: "196",
+        spenderAddress: "0x1111111111111111111111111111111111111111",
+        allowance: MAX_UINT256,
+        remainAmount: MAX_UINT256,
+        remainAmtPrecise: MAX_UINT256,
+        riskLevel: "low",
+        vulnerabilityFlag: false
+      }
+    ]
   });
   const configPath = await createPolicyConfig(fake.dir);
 
@@ -283,9 +301,13 @@ test("status, inspect, plan, and report run end-to-end through the CLI", async (
     const reportFile = await readFile(reportPath, "utf8");
 
     assert.match(status.stdout, /onchainos-approval-firewall status/);
-    assert.match(status.stdout, /Risk grade: attention/);
-    assert.match(inspect.stdout, /Unlimited approvals: 1/);
+    assert.match(status.stdout, /Risk grade: critical/);
+    assert.match(inspect.stdout, /Unlimited approvals: 2/);
+    assert.match(inspect.stdout, /Provider risk: low/);
+    assert.match(inspect.stdout, /Policy action: revoke/);
+    assert.match(inspect.stdout, /Policy label: blocked example/);
     assert.match(plan.stdout, /REPLACE_WITH_EXACT_APPROVAL/);
+    assert.match(plan.stdout, /REVOKE \[high\]/);
     assert.match(report.stdout, /# onchainos-approval-firewall report/);
     assert.match(reportFile, /Replacement allowance: `50000`/);
   } finally {

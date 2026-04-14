@@ -154,8 +154,19 @@ function summarizePreflight(results: ExecuteResult[]): {
   };
 }
 
-export function formatInspection(approvals: ApprovalRecord[]): string {
+export function formatInspection(
+  approvals: ApprovalRecord[],
+  decisions?: PolicyDecision[],
+  configPath?: string
+): string {
   const summary = summarizeApprovals(approvals);
+  const decisionMap = new Map<string, PolicyDecision>();
+  for (const decision of decisions ?? []) {
+    decisionMap.set(
+      `${decision.approval.chainIndex}:${decision.approval.tokenAddress.toLowerCase()}:${decision.approval.spenderAddress.toLowerCase()}`,
+      decision
+    );
+  }
   const lines = [
     "onchainos-approval-firewall inspection",
     `Total approvals: ${summary.totalApprovals}`,
@@ -165,6 +176,9 @@ export function formatInspection(approvals: ApprovalRecord[]): string {
     `Low risk approvals: ${summary.lowRiskApprovals}`,
     ""
   ];
+  if (configPath) {
+    lines.push(`Policy config: ${configPath}`, "");
+  }
 
   if (!approvals.length) {
     lines.push("No approvals found for the selected wallet or chain.", "");
@@ -172,12 +186,24 @@ export function formatInspection(approvals: ApprovalRecord[]): string {
   }
 
   for (const approval of approvals) {
+    const key = `${approval.chainIndex}:${approval.tokenAddress.toLowerCase()}:${approval.spenderAddress.toLowerCase()}`;
+    const decision = decisionMap.get(key);
     lines.push(
       `${approval.tokenSymbol || "UNKNOWN"} on chain ${approval.chainIndex}`,
       `  Token: ${approval.tokenAddress}`,
       `  Spender: ${approval.spenderAddress}`,
       `  Allowance: ${displayAllowance(approval)}`,
-      `  Risk: ${approval.riskLevel || "unknown"}`,
+      `  Provider risk: ${approval.riskLevel || "unknown"}`,
+      ...(decision
+        ? [
+            `  Policy action: ${decision.action}`,
+            `  Policy severity: ${decision.severity}`,
+            `  Policy reason: ${decision.reason}`,
+            ...(decision.policyLabel ? [`  Policy label: ${decision.policyLabel}`] : []),
+            ...(decision.replacementAllowance ? [`  Replacement allowance: ${decision.replacementAllowance}`] : []),
+            ...(decision.notes?.length ? [`  Policy notes: ${decision.notes.join(" | ")}`] : [])
+          ]
+        : []),
       ""
     );
   }
