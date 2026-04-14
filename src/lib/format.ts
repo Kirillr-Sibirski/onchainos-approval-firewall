@@ -8,6 +8,18 @@ import type {
   PolicyDecision
 } from "../types.js";
 
+function title(text: string): string {
+  return text.toUpperCase();
+}
+
+function section(text: string): string[] {
+  return [title(text), "-".repeat(text.length)];
+}
+
+function labeled(label: string, value: string): string {
+  return `${label.padEnd(18)} ${value}`;
+}
+
 function displayAllowance(approval: ApprovalRecord): string {
   return approval.isUnlimited ? "unlimited" : approval.allowance;
 }
@@ -168,12 +180,14 @@ export function formatInspection(
     );
   }
   const lines = [
-    "onchainos-approval-firewall inspection",
-    `Total approvals: ${summary.totalApprovals}`,
-    `Unlimited approvals: ${summary.unlimitedApprovals}`,
-    `High risk approvals: ${summary.highRiskApprovals}`,
-    `Medium risk approvals: ${summary.mediumRiskApprovals}`,
-    `Low risk approvals: ${summary.lowRiskApprovals}`,
+    title("onchainos-approval-firewall inspection"),
+    "",
+    ...section("Summary"),
+    labeled("Total approvals", String(summary.totalApprovals)),
+    labeled("Unlimited", String(summary.unlimitedApprovals)),
+    labeled("High risk", String(summary.highRiskApprovals)),
+    labeled("Medium risk", String(summary.mediumRiskApprovals)),
+    labeled("Low risk", String(summary.lowRiskApprovals)),
     ""
   ];
   if (configPath) {
@@ -189,19 +203,19 @@ export function formatInspection(
     const key = `${approval.chainIndex}:${approval.tokenAddress.toLowerCase()}:${approval.spenderAddress.toLowerCase()}`;
     const decision = decisionMap.get(key);
     lines.push(
-      `${approval.tokenSymbol || "UNKNOWN"} on chain ${approval.chainIndex}`,
-      `  Token: ${approval.tokenAddress}`,
-      `  Spender: ${approval.spenderAddress}`,
-      `  Allowance: ${displayAllowance(approval)}`,
-      `  Provider risk: ${approval.riskLevel || "unknown"}`,
+      ...section(`${approval.tokenSymbol || "UNKNOWN"} on chain ${approval.chainIndex}`),
+      labeled("Token", approval.tokenAddress),
+      labeled("Spender", approval.spenderAddress),
+      labeled("Allowance", displayAllowance(approval)),
+      labeled("Provider risk", approval.riskLevel || "unknown"),
       ...(decision
         ? [
-            `  Policy action: ${decision.action}`,
-            `  Policy severity: ${decision.severity}`,
-            `  Policy reason: ${decision.reason}`,
-            ...(decision.policyLabel ? [`  Policy label: ${decision.policyLabel}`] : []),
-            ...(decision.replacementAllowance ? [`  Replacement allowance: ${decision.replacementAllowance}`] : []),
-            ...(decision.notes?.length ? [`  Policy notes: ${decision.notes.join(" | ")}`] : [])
+            labeled("Policy action", decision.action),
+            labeled("Policy severity", decision.severity),
+            labeled("Policy reason", decision.reason),
+            ...(decision.policyLabel ? [labeled("Policy label", decision.policyLabel)] : []),
+            ...(decision.replacementAllowance ? [labeled("Replacement", decision.replacementAllowance)] : []),
+            ...(decision.notes?.length ? [labeled("Policy notes", decision.notes.join(" | "))] : [])
           ]
         : []),
       ""
@@ -212,7 +226,7 @@ export function formatInspection(
 }
 
 export function formatPlan(decisions: PolicyDecision[]): string {
-  const lines = ["onchainos-approval-firewall plan", ""];
+  const lines = [title("onchainos-approval-firewall plan"), ""];
 
   if (!decisions.length) {
     lines.push("No policy actions are needed for the selected wallet or chain.", "");
@@ -221,21 +235,21 @@ export function formatPlan(decisions: PolicyDecision[]): string {
 
   for (const decision of decisions) {
     lines.push(
-      `${decision.action.toUpperCase()} [${decision.severity}]`,
-      `  Token: ${decision.approval.tokenSymbol || decision.approval.tokenAddress}`,
-      `  Spender: ${decision.approval.spenderAddress}`,
-      `  Allowance: ${displayAllowance(decision.approval)}`,
-      `  Why: ${decision.reason}`
+      ...section(`${decision.action.toUpperCase()} [${decision.severity}]`),
+      labeled("Token", decision.approval.tokenSymbol || decision.approval.tokenAddress),
+      labeled("Spender", decision.approval.spenderAddress),
+      labeled("Allowance", displayAllowance(decision.approval)),
+      labeled("Why", decision.reason)
     );
 
     if (decision.policyLabel) {
-      lines.push(`  Policy label: ${decision.policyLabel}`);
+      lines.push(labeled("Policy label", decision.policyLabel));
     }
     if (decision.replacementAllowance) {
-      lines.push(`  Replacement allowance: ${decision.replacementAllowance}`);
+      lines.push(labeled("Replacement", decision.replacementAllowance));
     }
     if (decision.notes?.length) {
-      lines.push(`  Notes: ${decision.notes.join(" | ")}`);
+      lines.push(labeled("Notes", decision.notes.join(" | ")));
     }
 
     lines.push(
@@ -319,14 +333,16 @@ export function formatStatus(params: {
   const health = summarizeHealth(params.decisions);
   const topDecision = params.decisions.find((decision) => decision.action !== "keep");
   const lines = [
-    "onchainos-approval-firewall status",
-    `Wallet: ${params.address}`,
-    `Chain: ${params.chain ?? "all"}`,
-    `Policy: ${params.policy}`,
-    `Risk grade: ${health.grade}`,
-    `Headline: ${health.headline}`,
-    `Approvals: ${summary.totalApprovals} total | ${summary.unlimitedApprovals} unlimited | ${summary.highRiskApprovals} high risk`,
-    `Next action: ${health.nextAction}`,
+    title("onchainos-approval-firewall status"),
+    "",
+    ...section("Summary"),
+    labeled("Wallet", params.address),
+    labeled("Chain", params.chain ?? "all"),
+    labeled("Policy", params.policy),
+    labeled("Risk grade", health.grade),
+    labeled("Headline", health.headline),
+    labeled("Approvals", `${summary.totalApprovals} total | ${summary.unlimitedApprovals} unlimited | ${summary.highRiskApprovals} high risk`),
+    labeled("Next action", health.nextAction),
     ""
   ];
 
@@ -337,15 +353,15 @@ export function formatStatus(params: {
 
   if (topDecision) {
     lines.push(
-      "Top finding",
-      `  Action: ${topDecision.action}`,
-      `  Token: ${topDecision.approval.tokenSymbol || topDecision.approval.tokenAddress}`,
-      `  Spender: ${topDecision.approval.spenderAddress}`,
-      `  Why: ${topDecision.reason}`,
+      ...section("Top finding"),
+      labeled("Action", topDecision.action),
+      labeled("Token", topDecision.approval.tokenSymbol || topDecision.approval.tokenAddress),
+      labeled("Spender", topDecision.approval.spenderAddress),
+      labeled("Why", topDecision.reason),
       ""
     );
   } else {
-    lines.push("Top finding", "  Nothing needs action right now.", "");
+    lines.push(...section("Top finding"), "Nothing needs action right now.", "");
   }
 
   return lines.join("\n");
@@ -371,18 +387,21 @@ export function formatReview(params: {
   const findings = params.decisions.filter((decision) => decision.action !== "keep").slice(0, 3);
   const currentApprovals = params.decisions.slice(0, 5);
   const lines = [
-    "onchainos-approval-firewall review",
-    `Wallet: ${params.address}`,
-    `Chain: ${params.chain ?? "all"}`,
-    `Policy: ${params.policy}`,
-    `Risk grade: ${health.grade}`,
-    `Headline: ${health.headline}`,
-    `Approvals: ${summary.totalApprovals} total | ${summary.unlimitedApprovals} unlimited | ${summary.highRiskApprovals} high risk`,
-    `Next action: ${
+    title("onchainos-approval-firewall review"),
+    "",
+    ...section("Summary"),
+    labeled("Wallet", params.address),
+    labeled("Chain", params.chain ?? "all"),
+    labeled("Policy", params.policy),
+    labeled("Risk grade", health.grade),
+    labeled("Headline", health.headline),
+    labeled("Approvals", `${summary.totalApprovals} total | ${summary.unlimitedApprovals} unlimited | ${summary.highRiskApprovals} high risk`),
+    labeled(
+      "Next action",
       hasBlockedPreflight
         ? "One or more remediation paths are blocked by tx-scan. Review the report before live execution."
         : health.nextAction
-    }`
+    )
   ];
 
   const walletExplorerUrl = buildWalletExplorerUrl(params.address, params.chain);
@@ -393,41 +412,41 @@ export function formatReview(params: {
     lines.push(`Policy config: ${params.configPath}`);
   }
 
-  lines.push("", "Top findings");
+  lines.push("", ...section("Top findings"));
 
   if (!findings.length) {
     lines.push("  No actions beyond keep are currently required.");
   } else {
     for (const finding of findings) {
       lines.push(
-        `  ${finding.action} [${finding.severity}] ${finding.approval.tokenSymbol || finding.approval.tokenAddress}`,
-        `    Spender: ${finding.approval.spenderAddress}`,
-        `    Reason: ${finding.reason}`
+        `${finding.action.toUpperCase()} [${finding.severity}] ${finding.approval.tokenSymbol || finding.approval.tokenAddress}`,
+        labeled("Spender", finding.approval.spenderAddress),
+        labeled("Reason", finding.reason)
       );
       if (finding.replacementAllowance) {
-        lines.push(`    Replacement allowance: ${finding.replacementAllowance}`);
+        lines.push(labeled("Replacement", finding.replacementAllowance));
       }
     }
   }
 
-  lines.push("", "Current approvals");
+  lines.push("", ...section("Current approvals"));
 
   if (!currentApprovals.length) {
     lines.push("  No approvals found.");
   } else {
     for (const decision of currentApprovals) {
       lines.push(
-        `  ${decision.action} [${decision.severity}] ${decision.approval.tokenSymbol || decision.approval.tokenAddress}`,
-        `    Spender: ${decision.approval.spenderAddress}`,
-        `    Allowance: ${displayAllowance(decision.approval)}`,
-        `    Provider risk: ${decision.approval.riskLevel || "unknown"}`,
-        `    Reason: ${decision.reason}`
+        `${decision.action.toUpperCase()} [${decision.severity}] ${decision.approval.tokenSymbol || decision.approval.tokenAddress}`,
+        labeled("Spender", decision.approval.spenderAddress),
+        labeled("Allowance", displayAllowance(decision.approval)),
+        labeled("Provider risk", decision.approval.riskLevel || "unknown"),
+        labeled("Reason", decision.reason)
       );
       if (decision.policyLabel) {
-        lines.push(`    Policy label: ${decision.policyLabel}`);
+        lines.push(labeled("Policy label", decision.policyLabel));
       }
       if (decision.replacementAllowance) {
-        lines.push(`    Replacement allowance: ${decision.replacementAllowance}`);
+        lines.push(labeled("Replacement", decision.replacementAllowance));
       }
     }
   }
@@ -436,32 +455,32 @@ export function formatReview(params: {
     const preflightSummary = summarizePreflight(params.preflight);
     lines.push(
       "",
-      "Preflight remediation",
-      `  Safe cleanup paths: ${preflightSummary.safeCount}`,
-      `  Blocked cleanup paths: ${preflightSummary.blockedCount}`
+      ...section("Preflight remediation"),
+      labeled("Safe paths", String(preflightSummary.safeCount)),
+      labeled("Blocked paths", String(preflightSummary.blockedCount))
     );
 
     if (preflightSummary.replacementBlockedCount > 0) {
-      lines.push(`  Blocked exact re-grants: ${preflightSummary.replacementBlockedCount}`);
+      lines.push(labeled("Blocked regrants", String(preflightSummary.replacementBlockedCount)));
     }
 
     for (const result of params.preflight.slice(0, 3)) {
       lines.push(
-        `  ${result.plannedAction} ${result.approval.tokenSymbol || result.approval.tokenAddress}`,
-        `    Cleanup scan: ${result.scan.action || "safe"}`
+        `${result.plannedAction.toUpperCase()} ${result.approval.tokenSymbol || result.approval.tokenAddress}`,
+        labeled("Cleanup scan", result.scan.action || "safe")
       );
 
       if (result.replacementScan) {
-        lines.push(`    Replacement scan: ${result.replacementScan.action || "safe"}`);
+        lines.push(labeled("Replacement scan", result.replacementScan.action || "safe"));
       }
 
       if (result.followUp) {
-        lines.push(`    Follow-up: ${result.followUp}`);
+        lines.push(labeled("Follow-up", result.followUp));
       }
     }
   }
 
-  lines.push("", `Recommended command: ${params.recommendedCommand}`);
+  lines.push("", ...section("Recommended command"), params.recommendedCommand);
 
   if (params.brief) {
     lines.push("", "Operator brief", params.brief);
