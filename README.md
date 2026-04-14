@@ -69,6 +69,10 @@ npm run dev -- execute --apply
 npm run dev -- audit
 ```
 
+- `review`: inspect current approvals, apply local policy, and show what should be kept, reviewed, revoked, or reduced
+- `execute --apply`: submit the live cleanup transactions through the Agentic Wallet on X Layer
+- `audit`: show the local artifact trail with tx hashes and post-run verification
+
 You usually do not need `--address`, `--chain`, `--policy`, or `--config` because the CLI falls back to the active Agentic Wallet session and the default local config file.
 
 You do not need a private key in `.env` for the normal flow. Live execution uses the active `Agentic Wallet` session through the real `onchainos` CLI.
